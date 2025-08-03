@@ -11,7 +11,8 @@ import { Thermometer, Droplets, Gauge, Wind, Zap, Sun, Volume2, AlertTriangle, R
 // Remove the api import and revert to original fetch calls
 // 1. Remove the import line: `import { api, ApiError } from "@/lib/api"`
 
-const API_BASE_URL = "https://api.envqmon.sayan.fit/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
 
 interface DeviceData {
   id: string

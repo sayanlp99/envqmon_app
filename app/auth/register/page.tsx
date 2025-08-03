@@ -12,7 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
 
-const API_BASE_URL = "https://api.envqmon.sayan.fit/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
 
 export default function RegisterPage() {
   const [name, setName] = useState("")

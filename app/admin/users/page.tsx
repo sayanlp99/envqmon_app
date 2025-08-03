@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Users, Shield, Calendar, Loader2, Edit } from "lucide-react"
 
-const API_BASE_URL = "https://api.envqmon.sayan.fit/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
 
 interface AdminUser {
   user_id: string

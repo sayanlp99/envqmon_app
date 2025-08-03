@@ -22,7 +22,8 @@ import { Zap, Plus, Wifi, Loader2, Activity } from "lucide-react"
 // Remove the api import and revert to original fetch calls
 // 1. Remove the import line: `import { api, ApiError } from "@/lib/api"`
 
-const API_BASE_URL = "https://api.envqmon.sayan.fit/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
 
 interface Device {
   device_id: string
