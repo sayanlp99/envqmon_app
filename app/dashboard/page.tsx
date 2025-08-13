@@ -1,18 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Thermometer, Droplets, Gauge, Wind, Zap, Sun, Volume2, AlertTriangle, RefreshCw } from "lucide-react"
-// Remove the api import and revert to original fetch calls
-// 1. Remove the import line: `import { api, ApiError } from "@/lib/api"`
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-
+const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
 
 interface DeviceData {
   id: string
@@ -47,7 +44,24 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [dataLoading, setDataLoading] = useState(false)
   const [error, setError] = useState("")
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, boolean>>({})
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Auto-refresh effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (autoRefresh && selectedDevice) {
+      interval = setInterval(() => {
+        fetchDeviceData(selectedDevice, false) // Don't show loading on auto-refresh
+        fetchDevices() // Also refresh device statuses
+      }, 5000) // 5 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [autoRefresh, selectedDevice])
 
   useEffect(() => {
     const token = localStorage.getItem("token")
@@ -58,8 +72,25 @@ export default function DashboardPage() {
     fetchDevices()
   }, [router])
 
-  // Remove the api import and revert to original fetch calls
-  // 2. Replace the fetchDevices function with the original:
+  // Handle URL params for device selection
+  useEffect(() => {
+    const deviceParam = searchParams.get("device")
+    if (deviceParam && devices.length > 0) {
+      const deviceExists = devices.find((d) => d.device_id === deviceParam)
+      if (deviceExists) {
+        setSelectedDevice(deviceParam)
+        fetchDeviceData(deviceParam)
+      }
+    }
+  }, [searchParams, devices])
+
+  const isDeviceOnline = (device: Device, latestData?: DeviceData) => {
+    if (!latestData) return false
+    const lastUpdate = Number.parseInt(latestData.recorded_at) * 1000
+    const now = Date.now()
+    return now - lastUpdate <= 20000 // 20 seconds threshold
+  }
+
   const fetchDevices = async () => {
     try {
       const token = localStorage.getItem("token")
@@ -72,7 +103,30 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json()
         setDevices(data)
-        if (data.length > 0) {
+
+        // Update device statuses by checking latest data for each
+        const statuses: Record<string, boolean> = {}
+        for (const device of data) {
+          try {
+            const dataResponse = await fetch(`${API_BASE_URL}/data/latest/${device.device_id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            })
+            if (dataResponse.ok) {
+              const deviceData = await dataResponse.json()
+              statuses[device.device_id] = isDeviceOnline(device, deviceData)
+            } else {
+              statuses[device.device_id] = false
+            }
+          } catch {
+            statuses[device.device_id] = false
+          }
+        }
+        setDeviceStatuses(statuses)
+
+        // Set default device if none selected and no URL param
+        if (!selectedDevice && !searchParams.get("device") && data.length > 0) {
           setSelectedDevice(data[0].device_id)
           fetchDeviceData(data[0].device_id)
         }
@@ -86,12 +140,12 @@ export default function DashboardPage() {
     }
   }
 
-  // Remove the api import and revert to original fetch calls
-  // 3. Replace the fetchDeviceData function with the original:
-  const fetchDeviceData = async (deviceId: string) => {
+  const fetchDeviceData = async (deviceId: string, showLoading = true) => {
     if (!deviceId) return
 
-    setDataLoading(true)
+    if (showLoading) setDataLoading(true)
+    setError("") // Clear previous errors
+
     try {
       const token = localStorage.getItem("token")
       const response = await fetch(`${API_BASE_URL}/data/latest/${deviceId}`, {
@@ -103,18 +157,44 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json()
         setDeviceData(data)
+        // Update device status
+        const device = devices.find((d) => d.device_id === deviceId)
+        if (device) {
+          setDeviceStatuses((prev) => ({
+            ...prev,
+            [deviceId]: isDeviceOnline(device, data),
+          }))
+        }
+      } else if (response.status === 404) {
+        // Handle 404 specifically - no data available
+        setDeviceData(null)
+        setError("No data available for this device")
+        setDeviceStatuses((prev) => ({
+          ...prev,
+          [deviceId]: false,
+        }))
       } else {
+        setDeviceData(null)
         setError("Failed to fetch device data")
       }
     } catch (err) {
+      setDeviceData(null)
       setError("Network error")
     } finally {
-      setDataLoading(false)
+      if (showLoading) setDataLoading(false)
     }
   }
 
   const handleDeviceChange = (deviceId: string) => {
     setSelectedDevice(deviceId)
+    setError("") // Clear any previous errors
+    setDeviceData(null) // Clear previous data
+
+    // Update URL without page refresh
+    const url = new URL(window.location.href)
+    url.searchParams.set("device", deviceId)
+    window.history.replaceState({}, "", url.toString())
+
     fetchDeviceData(deviceId)
   }
 
@@ -122,6 +202,7 @@ export default function DashboardPage() {
     if (selectedDevice) {
       fetchDeviceData(selectedDevice)
     }
+    fetchDevices() // Also refresh device list and statuses
   }
 
   const getStatusColor = (value: number, type: string) => {
@@ -168,11 +249,20 @@ export default function DashboardPage() {
               <SelectContent>
                 {devices.map((device) => (
                   <SelectItem key={device.device_id} value={device.device_id}>
-                    {device.device_name}
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${deviceStatuses[device.device_id] ? "bg-green-500" : "bg-red-500"}`}
+                      ></div>
+                      <span>{device.device_name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <Button onClick={() => setAutoRefresh(!autoRefresh)} variant={autoRefresh ? "default" : "outline"}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`} />
+              {autoRefresh ? "Auto ON" : "Auto OFF"}
+            </Button>
             <Button onClick={refreshData} disabled={dataLoading} variant="outline">
               <RefreshCw className={`h-4 w-4 mr-2 ${dataLoading ? "animate-spin" : ""}`} />
               Refresh
@@ -336,8 +426,15 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Status:</span>
-                    <Badge variant="outline" className="text-green-600 border-green-600">
-                      Active
+                    <Badge
+                      variant="outline"
+                      className={
+                        deviceStatuses[selectedDevice]
+                          ? "text-green-600 border-green-600"
+                          : "text-red-600 border-red-600"
+                      }
+                    >
+                      {deviceStatuses[selectedDevice] ? "Online" : "Offline"}
                     </Badge>
                   </div>
                 </div>
@@ -345,11 +442,23 @@ export default function DashboardPage() {
             </Card>
           </div>
         ) : (
+          !dataLoading && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <AlertTriangle className="h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Data Available</h3>
+                <p className="text-gray-600 text-center">No recent data found for the selected device.</p>
+              </CardContent>
+            </Card>
+          )
+        )}
+
+        {dataLoading && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <AlertTriangle className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Data Available</h3>
-              <p className="text-gray-600 text-center">No recent data found for the selected device.</p>
+              <RefreshCw className="h-12 w-12 text-gray-400 mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading Data...</h3>
+              <p className="text-gray-600 text-center">Fetching latest environmental readings.</p>
             </CardContent>
           </Card>
         )}

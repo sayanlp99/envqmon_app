@@ -22,8 +22,7 @@ import { Zap, Plus, Wifi, Loader2, Activity } from "lucide-react"
 // Remove the api import and revert to original fetch calls
 // 1. Remove the import line: `import { api, ApiError } from "@/lib/api"`
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-
+const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
 
 interface Device {
   device_id: string
@@ -42,6 +41,7 @@ export default function DevicesPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, boolean>>({})
 
   // Form states
   const [deviceName, setDeviceName] = useState("")
@@ -58,6 +58,25 @@ export default function DevicesPage() {
     fetchDevices()
   }, [router])
 
+  const checkDeviceStatus = async (deviceId: string) => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`${API_BASE_URL}/data/latest/${deviceId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const lastUpdate = Number.parseInt(data.recorded_at) * 1000
+        const now = Date.now()
+        return now - lastUpdate <= 20000 // 20 seconds threshold
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
   // Replace the fetchDevices function
   const fetchDevices = async () => {
     try {
@@ -71,6 +90,13 @@ export default function DevicesPage() {
       if (response.ok) {
         const data = await response.json()
         setDevices(data)
+
+        // Check status for each device
+        const statuses: Record<string, boolean> = {}
+        for (const device of data) {
+          statuses[device.device_id] = await checkDeviceStatus(device.device_id)
+        }
+        setDeviceStatuses(statuses)
       } else {
         setError("Failed to fetch devices")
       }
@@ -243,10 +269,10 @@ export default function DevicesPage() {
                         <span className="text-gray-600">Status:</span>
                         <div className="flex items-center space-x-1">
                           <div
-                            className={`w-2 h-2 rounded-full ${device.is_active ? "bg-green-500" : "bg-gray-400"}`}
+                            className={`w-2 h-2 rounded-full ${deviceStatuses[device.device_id] ? "bg-green-500" : "bg-red-500"}`}
                           ></div>
-                          <span className={device.is_active ? "text-green-600" : "text-gray-600"}>
-                            {device.is_active ? "Online" : "Offline"}
+                          <span className={deviceStatuses[device.device_id] ? "text-green-600" : "text-red-600"}>
+                            {deviceStatuses[device.device_id] ? "Online" : "Offline"}
                           </span>
                         </div>
                       </div>

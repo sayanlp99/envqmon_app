@@ -7,10 +7,18 @@ import { Button } from "@/components/ui/button"
 import { Activity, Home, Users, Zap, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+
 export default function HomePage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+
+  const [stats, setStats] = useState({
+    activeDevices: 0,
+    totalHomes: 0,
+    totalRooms: 0,
+  })
 
   useEffect(() => {
     const token = localStorage.getItem("token")
@@ -23,6 +31,68 @@ export default function HomePage() {
     }
     setLoading(false)
   }, [router])
+
+  useEffect(() => {
+    if (user) {
+      fetchStats()
+    }
+  }, [user])
+
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem("token")
+
+      // Fetch devices
+      const devicesResponse = await fetch(`${API_BASE_URL}/devices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      // Fetch homes
+      const homesResponse = await fetch(`${API_BASE_URL}/homes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      // Fetch rooms
+      const roomsResponse = await fetch(`${API_BASE_URL}/rooms`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (devicesResponse.ok && homesResponse.ok && roomsResponse.ok) {
+        const devices = await devicesResponse.json()
+        const homes = await homesResponse.json()
+        const rooms = await roomsResponse.json()
+
+        // Count active devices by checking their latest data
+        let activeCount = 0
+        for (const device of devices) {
+          try {
+            const dataResponse = await fetch(`${API_BASE_URL}/data/latest/${device.device_id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (dataResponse.ok) {
+              const deviceData = await dataResponse.json()
+              const lastUpdate = Number.parseInt(deviceData.recorded_at) * 1000
+              const now = Date.now()
+              if (now - lastUpdate <= 20000) {
+                // 20 seconds threshold
+                activeCount++
+              }
+            }
+          } catch {
+            // Device not active if no data or error
+          }
+        }
+
+        setStats({
+          activeDevices: activeCount,
+          totalHomes: homes.length,
+          totalRooms: rooms.length,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch stats:", error)
+    }
+  }
 
   if (loading) {
     return (
@@ -138,15 +208,15 @@ export default function HomePage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Active Devices</span>
-                  <span className="text-2xl font-bold text-green-600">--</span>
+                  <span className="text-2xl font-bold text-green-600">{stats.activeDevices}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Monitored Homes</span>
-                  <span className="text-2xl font-bold text-blue-600">--</span>
+                  <span className="text-2xl font-bold text-blue-600">{stats.totalHomes}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium">Total Rooms</span>
-                  <span className="text-2xl font-bold text-purple-600">--</span>
+                  <span className="text-2xl font-bold text-purple-600">{stats.totalRooms}</span>
                 </div>
               </div>
             </CardContent>

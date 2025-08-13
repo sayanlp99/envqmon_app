@@ -25,7 +25,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
 
 interface Device {
   device_id: string
