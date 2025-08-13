@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, MapPin, Calendar, Loader2 } from "lucide-react"
 import { HomeIcon as HomeType } from "lucide-react" // Renamed to avoid redeclaration
 
-const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 interface Home {
   home_id: string

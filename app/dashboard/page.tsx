@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Thermometer, Droplets, Gauge, Wind, Zap, Sun, Volume2, AlertTriangle, RefreshCw } from "lucide-react"
 
-const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 interface DeviceData {
   id: string

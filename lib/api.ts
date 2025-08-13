@@ -1,5 +1,5 @@
 // Create a centralized API utility with CORS handling
-const API_BASE_URL = "process.env.NEXT_PUBLIC_API_BASE_URL"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 interface ApiOptions {
   method?: string
